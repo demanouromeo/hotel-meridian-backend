@@ -58,6 +58,7 @@ Route::middleware(EnsureFrontendRequestsAreStateful::class)->group(function () {
         Route::post('/logout', [AdminAuthController::class, 'logout']);
         Route::get('/me', [AdminAuthController::class, 'me']);
         Route::put('/password', [AdminAuthController::class, 'updatePassword']);
+        Route::put('/profile', [AdminAuthController::class, 'updateProfile']);
 
         Route::get('/room-types', [AdminRoomTypeController::class, 'index']);
         Route::get('/room-types/{roomType:code}', [AdminRoomTypeController::class, 'show']);
