@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class AuthController extends Controller
 {
@@ -28,6 +30,31 @@ class AuthController extends Controller
         $request->session()->regenerate();
 
         return response()->json(['user' => Auth::user()]);
+    }
+
+    /**
+     * Token-based login for the Capacitor Android app — see the comment on
+     * the /admin/mobile-login route for why it can't use the cookie/session
+     * flow above.
+     */
+    public function mobileLogin(Request $request)
+    {
+        $credentials = $request->validate([
+            'email' => ['required', 'email'],
+            'password' => ['required', 'string'],
+        ]);
+
+        $user = User::where('email', $credentials['email'])->first();
+
+        if (! $user || ! Hash::check($credentials['password'], $user->password) || ! in_array($user->role, ['admin', 'staff'], true)) {
+            throw ValidationException::withMessages([
+                'email' => ['These credentials do not match our records.'],
+            ]);
+        }
+
+        $token = $user->createToken('android-app')->plainTextToken;
+
+        return response()->json(['user' => $user, 'token' => $token]);
     }
 
     public function forgotPassword(Request $request)
@@ -68,10 +95,18 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
-        Auth::guard('web')->logout();
+        $token = $request->user()?->currentAccessToken();
 
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        if ($token instanceof PersonalAccessToken) {
+            // Android app: revoke the bearer token instead of touching the
+            // (nonexistent, for this request) session.
+            $token->delete();
+        } else {
+            Auth::guard('web')->logout();
+
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
 
         return response()->json(['message' => 'Logged out.']);
     }

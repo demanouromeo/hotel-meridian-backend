@@ -19,8 +19,8 @@ use App\Http\Controllers\Api\RoomTypeController;
 use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\ServiceReservationController;
 use App\Http\Controllers\Api\SettingController;
-use App\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Illuminate\Support\Facades\Route;
+use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
 // Public
 Route::get('/room-types', [RoomTypeController::class, 'index']);
@@ -49,12 +49,21 @@ Route::post('/service-reservations/{reference}/cancel', [ServiceReservationContr
 Route::post('/admin/forgot-password', [AdminAuthController::class, 'forgotPassword'])->middleware('throttle:5,1');
 Route::post('/admin/reset-password', [AdminAuthController::class, 'resetPassword'])->middleware('throttle:5,1');
 
+// The Capacitor Android app authenticates with a Sanctum personal access
+// token instead of the cookie/session flow below — its page origin
+// (https://localhost) is a different site than the API's, so it can never
+// read back the session's CSRF cookie (a browser same-origin restriction,
+// not something any server-side config can work around). This endpoint is
+// deliberately stateless/outside the stateful group: no session, no CSRF.
+Route::post('/admin/mobile-login', [AdminAuthController::class, 'mobileLogin'])->middleware('throttle:5,1');
+
 // Admin — session-based SPA auth via Sanctum, scoped so public routes above stay
 // fully stateless (no session/CSRF requirement for anonymous guest requests).
-// Uses App\Http\Middleware\EnsureFrontendRequestsAreStateful, not Sanctum's own
-// class — Sanctum hardcodes session.same_site to "lax", which breaks the
-// Capacitor Android app's cross-site (https://localhost) session cookie; see
-// that class for details.
+// This only ever applies to the website: Origin/Referer has to match
+// SANCTUM_STATEFUL_DOMAINS (hotelmeridian.dmsacad.com) to engage at all, and
+// the app's requests (Origin: https://localhost, Bearer token instead of a
+// cookie) never match, so they pass straight through to auth:sanctum below
+// as plain token-authenticated requests.
 Route::middleware(EnsureFrontendRequestsAreStateful::class)->group(function () {
     Route::post('/admin/login', [AdminAuthController::class, 'login'])->middleware('throttle:5,1');
 
