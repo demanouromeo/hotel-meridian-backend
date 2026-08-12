@@ -19,8 +19,8 @@ use App\Http\Controllers\Api\RoomTypeController;
 use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\ServiceReservationController;
 use App\Http\Controllers\Api\SettingController;
+use App\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Illuminate\Support\Facades\Route;
-use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
 // Public
 Route::get('/room-types', [RoomTypeController::class, 'index']);
@@ -51,6 +51,10 @@ Route::post('/admin/reset-password', [AdminAuthController::class, 'resetPassword
 
 // Admin — session-based SPA auth via Sanctum, scoped so public routes above stay
 // fully stateless (no session/CSRF requirement for anonymous guest requests).
+// Uses App\Http\Middleware\EnsureFrontendRequestsAreStateful, not Sanctum's own
+// class — Sanctum hardcodes session.same_site to "lax", which breaks the
+// Capacitor Android app's cross-site (https://localhost) session cookie; see
+// that class for details.
 Route::middleware(EnsureFrontendRequestsAreStateful::class)->group(function () {
     Route::post('/admin/login', [AdminAuthController::class, 'login'])->middleware('throttle:5,1');
 
